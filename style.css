@@ -175,8 +175,20 @@ body {
 /* When scrolling is active */
 .track-title.scrolling {
     animation: scroll-text linear infinite; /* Duration set by JS */
-    padding-left: 100%; /* Start from the far right of the container */
-    flex-shrink: 0; /* Prevent shrinking in flex container */
+    padding-left: 0; 
+    transform: translateX(0); 
+    flex-shrink: 0; 
+}
+
+/* Ensure container aligns start when scrolling to avoid centering causing offset issues */
+.track-title-container:has(.scrolling) {
+    justify-content: flex-start;
+}
+
+@keyframes scroll-text {
+    0% { transform: translateX(0); } /* Start visible at left */
+    20% { transform: translateX(0); } /* Pause briefly */
+    100% { transform: translateX(-100%); } /* Scroll completely to the left */
 }
 
 /* Ensure container aligns start when scrolling to avoid centering causing offset issues */
@@ -314,13 +326,15 @@ body {
 
 .freq-bar.active {
     opacity: 1;
-    animation: freq-pulse 0.3s ease-in-out infinite alternate;
+    /* Animation handled by JS for better visualization */
+    /* animation: freq-pulse 0.3s ease-in-out infinite alternate; */
+    box-shadow: 0 0 5px var(--accent-red);
 }
 
-@keyframes freq-pulse {
+/* @keyframes freq-pulse {
     0% { height: 10px; }
     100% { height: 45px; }
-}
+} */
 
 .controls {
     display: flex;

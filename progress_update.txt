@@ -1,0 +1,11 @@
+I've implemented the **Settings Persistence** and **Keyboard Shortcuts**.
+
+**Changes:**
+1.  **Settings**: The player now remembers your **volume** and the **last video** you tuned into. It restores them automatically when you reload the page.
+2.  **Controls**: Added keyboard support:
+    -   `Space` / `k`: Play/Pause
+    -   `Arrow Up/Down`: Volume +/-
+    -   `Arrow Left/Right`: Seek +/- 5s
+    -   `m`: Mute toggle
+
+Next, I will work on **Enhancing the Visualizer** to make the animation look more realistic and fluid, replacing the simple random flickering with a wave-based simulation.

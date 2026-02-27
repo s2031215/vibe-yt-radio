@@ -26,6 +26,9 @@ let isPlaying = false;
 let currentVideoId = null;
 let progressInterval;
 
+const STORAGE_KEY_VOLUME = 'yt_radio_volume';
+const STORAGE_KEY_LAST_VIDEO = 'yt_radio_last_video';
+
 console.log('[YouTube FM] Creating frequency bars...');
 for (let i = 0; i < 32; i++) {
     const bar = document.createElement('div');
@@ -76,18 +79,66 @@ function updatePlayButton() {
     }
 }
 
+let visualizerAnimationFrame;
+
+function updateVisualizerBars() {
+    if (!isPlaying) {
+        visualizerAnimationFrame = null;
+        return;
+    }
+
+    const bars = elements.freqBars.querySelectorAll('.freq-bar');
+    const time = Date.now() / 1000;
+
+    bars.forEach((bar, index) => {
+        // Multi-wave simulation for more organic movement
+        const wave1 = Math.sin(time * 3 + index * 0.2);
+        const wave2 = Math.cos(time * 5 + index * 0.5);
+        const wave3 = Math.sin(time * 7 + index * 0.1);
+
+        // Combine waves
+        let heightFactor = (wave1 + wave2 + wave3) / 3;
+        
+        // Add absolute value for bounce
+        heightFactor = Math.abs(heightFactor);
+
+        // Add some random jitter
+        heightFactor += (Math.random() * 0.2);
+
+        // Scale to 0-1
+        heightFactor = Math.min(1, Math.max(0.1, heightFactor));
+
+        // Random "beat" spikes
+        if (Math.random() > 0.95) heightFactor = 1.0;
+
+        // Apply height (5px to 45px)
+        const h = 5 + (heightFactor * 40);
+        
+        bar.style.height = `${h}px`;
+    });
+
+    visualizerAnimationFrame = requestAnimationFrame(updateVisualizerBars);
+}
+
 function setVisualizerActive(active) {
     console.log('[YouTube FM] Visualizer:', active ? 'active' : 'inactive');
     const bars = elements.freqBars.querySelectorAll('.freq-bar');
-    bars.forEach((bar, index) => {
-        if (active) {
-            bar.classList.add('active');
-            bar.style.animationDuration = `${0.2 + Math.random() * 0.3}s`;
-        } else {
+    
+    if (active) {
+        bars.forEach(bar => bar.classList.add('active'));
+        if (!visualizerAnimationFrame) {
+            updateVisualizerBars();
+        }
+    } else {
+        bars.forEach(bar => {
             bar.classList.remove('active');
             bar.style.height = '10px';
+        });
+        if (visualizerAnimationFrame) {
+            cancelAnimationFrame(visualizerAnimationFrame);
+            visualizerAnimationFrame = null;
         }
-    });
+    }
 }
 
 function updateProgress() {
@@ -169,6 +220,13 @@ function loadVideo() {
     currentVideoId = videoId;
     console.log('[YouTube FM] Calling loadVideoById with:', videoId);
 
+    // Save to localStorage
+    try {
+        localStorage.setItem(STORAGE_KEY_LAST_VIDEO, videoId);
+    } catch (e) {
+        console.warn('[YouTube FM] Could not save last video:', e);
+    }
+
     try {
         player.loadVideoById({
             videoId: videoId,
@@ -244,10 +302,9 @@ function onPlayerStateChange(event) {
                 
                 if (textWidth > containerWidth) {
                     elements.trackTitle.classList.add('scrolling');
-                    // Distance is full width of element (padding + text) which is containerWidth + textWidth
-                    // Speed = distance / duration => duration = distance / speed
-                    // Let's target roughly 50px/sec speed for readability
-                    const duration = (textWidth + containerWidth) / 50; 
+                    // Distance is just text width (scrolling out of view)
+                    // Speed ~50px/sec
+                    const duration = textWidth / 50;
                     elements.trackTitle.style.animationDuration = `${Math.max(10, duration)}s`;
                 }
             }, 500);
@@ -348,6 +405,14 @@ function stopVideo() {
 function updateVolume() {
     const volume = elements.volumeSlider.value;
     elements.volumeValue.textContent = `${volume}%`;
+    
+    // Save to localStorage
+    try {
+        localStorage.setItem(STORAGE_KEY_VOLUME, volume);
+    } catch (e) {
+        console.warn('[YouTube FM] Could not save volume:', e);
+    }
+
     if (player && player.setVolume) {
         try {
             player.setVolume(volume);
@@ -372,6 +437,87 @@ function seekTo(e) {
     }
 }
 
-elements.volumeSlider.value = 20;
+function loadSettings() {
+    console.log('[YouTube FM] Loading settings...');
+    try {
+        const savedVolume = localStorage.getItem(STORAGE_KEY_VOLUME);
+        if (savedVolume !== null) {
+            elements.volumeSlider.value = savedVolume;
+            elements.volumeValue.textContent = `${savedVolume}%`;
+        } else {
+            elements.volumeSlider.value = 20; // Default
+            elements.volumeValue.textContent = '20%';
+        }
+
+        const savedVideo = localStorage.getItem(STORAGE_KEY_LAST_VIDEO);
+        if (savedVideo) {
+            console.log('[YouTube FM] Found last video:', savedVideo);
+            elements.urlInput.value = `https://youtu.be/${savedVideo}`;
+            // If we have a valid video ID, we could potentially set currentVideoId
+            // but we shouldn't auto-play without user interaction policy check.
+            // Let's just leave it populated for easy "Tune" button click.
+        }
+    } catch (e) {
+        console.warn('[YouTube FM] Could not load settings:', e);
+        elements.volumeSlider.value = 20;
+        elements.volumeValue.textContent = '20%';
+    }
+}
+
+function handleKeyboardControls(e) {
+    // Ignore if typing in an input
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+    // Volume controls should work even if not playing, as long as slider exists
+    if (e.code === 'ArrowUp') {
+        e.preventDefault();
+        let vol = parseInt(elements.volumeSlider.value);
+        vol = Math.min(100, vol + 5);
+        elements.volumeSlider.value = vol;
+        updateVolume();
+        return;
+    }
+    if (e.code === 'ArrowDown') {
+        e.preventDefault();
+        let vol = parseInt(elements.volumeSlider.value);
+        vol = Math.max(0, vol - 5);
+        elements.volumeSlider.value = vol;
+        updateVolume();
+        return;
+    }
+
+    if (!player || !currentVideoId) return;
+
+    switch(e.code) {
+        case 'Space':
+        case 'KeyK': // YouTube standard shortcut
+            e.preventDefault();
+            togglePlay();
+            break;
+        case 'ArrowRight':
+            if (player.getCurrentTime) {
+                e.preventDefault();
+                player.seekTo(player.getCurrentTime() + 5, true);
+            }
+            break;
+        case 'ArrowLeft':
+            if (player.getCurrentTime) {
+                e.preventDefault();
+                player.seekTo(player.getCurrentTime() - 5, true);
+            }
+            break;
+        case 'KeyM': // Mute toggle (optional but nice)
+             if (player.isMuted()) {
+                 player.unMute();
+             } else {
+                 player.mute();
+             }
+             break;
+    }
+}
+
+// Initialize
+loadSettings();
+document.addEventListener('keydown', handleKeyboardControls);
 
 console.log('[YouTube FM] Initialization complete');

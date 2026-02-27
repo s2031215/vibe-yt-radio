@@ -8,10 +8,10 @@
 - [x] **Error Handling**: Basic error messages and loading states
 
 ## Next Steps / Backlog
-- [ ] **Enhance Visualizer**: Improve `Math.random()` animation to be more realistic or frequency-based (if possible with API limitations)
+- [x] **Enhance Visualizer**: Improve `Math.random()` animation to be more realistic or frequency-based (simulated with sine waves)
 - [ ] **Playlist Support**: Implement "Next/Prev" buttons for playlist navigation
-- [ ] **Persist Settings**: Save volume and last played station to `localStorage`
-- [ ] **Keyboard Shortcuts**: Add Space (play/pause) and Arrow keys (volume/seek) support
+- [x] **Persist Settings**: Save volume and last played station to `localStorage`
+- [x] **Keyboard Shortcuts**: Add Space (play/pause) and Arrow keys (volume/seek) support
 - [ ] **Mobile Optimization**: Further refine touch targets for mobile users
 
 ## UI/UX Improvements (High Priority)
