@@ -20,16 +20,24 @@ const elements = {
     duration: document.getElementById('duration'),
     errorMessage: document.getElementById('errorMessage'),
     loadingOverlay: document.getElementById('loadingOverlay'),
-    playIcon: document.getElementById('playIcon')
+    playIcon: document.getElementById('playIcon'),
+    addToPlaylistBtn: document.getElementById('addToPlaylistBtn'),
+    playlistContent: document.getElementById('playlistContent'),
+    clearPlaylistBtn: document.getElementById('clearPlaylistBtn')
 };
 
 let player;
 let isPlaying = false;
 let currentVideoId = null;
 let progressInterval;
+let customPlaylist = [];
+let customPlaylistIndex = -1;
+let pendingPlaylistImport = false;
+let targetVideoId = null; // Specific video to play after playlist import
 
 const STORAGE_KEY_VOLUME = 'yt_radio_volume';
 const STORAGE_KEY_LAST_VIDEO = 'yt_radio_last_video';
+const STORAGE_KEY_PLAYLIST = 'yt_radio_custom_playlist';
 
 console.log('[YouTube FM] Creating frequency bars...');
 for (let i = 0; i < 32; i++) {
@@ -220,6 +228,25 @@ function onPlayerReady(event) {
     elements.nextBtn.addEventListener('click', nextTrack);
     elements.volumeSlider.addEventListener('input', updateVolume);
     elements.progressBar.addEventListener('click', seekTo);
+
+    // Load custom playlist
+    loadPlaylist();
+
+    // Auto-load last video if available
+    const savedVideo = localStorage.getItem(STORAGE_KEY_LAST_VIDEO);
+    if (savedVideo && !currentVideoId) {
+        console.log('[YouTube FM] Auto-cueing last video:', savedVideo);
+        currentVideoId = savedVideo;
+        // Check if it looks like a playlist ID was saved? 
+        // Our storage currently only saves video IDs in that key mostly.
+        // But let's check input field just in case it has a playlist URL
+        
+        // Actually simpler: just cue the video ID we have. 
+        // If we want full state restoration including playlist, we'd need to save playlist ID too.
+        // For now, restoring the video is a good start.
+        player.cueVideoById(savedVideo);
+        elements.statusText.textContent = 'READY';
+    }
 }
 
 function loadVideo() {
@@ -256,29 +283,19 @@ function loadVideo() {
     try {
         updateVolume();
         
-        if (playlistId && !videoId) {
-            // Playlist only
-            console.log('[YouTube FM] Loading playlist:', playlistId);
-            currentVideoId = null; // Will be set by onStateChange
+        if (playlistId) {
+            // Playlist detected - queue for import
+            console.log('[YouTube FM] Loading playlist for import:', playlistId);
+            pendingPlaylistImport = true;
+            targetVideoId = videoId; // Store the target video ID (if any)
+            
+            // Load the playlist to get the video IDs
             player.loadPlaylist({
                 list: playlistId,
                 listType: 'playlist',
                 index: 0,
                 startSeconds: 0
             });
-        } else if (playlistId && videoId) {
-             // Both: Load video first, user won't have prev/next immediately 
-             // unless we can find the index. For MVP, we load the video.
-             // Improvement: We can try to load the playlist BUT we don't know the index.
-             // Compromise: Load the video directly. If the user wants the full playlist experience,
-             // they should use the playlist link or we just accept that deep-linking 
-             // into a playlist without index is hard without API key.
-             console.log('[YouTube FM] Loading video (ignoring playlist context for now):', videoId);
-             currentVideoId = videoId;
-             player.loadVideoById({
-                 videoId: videoId,
-                 startSeconds: 0
-             });
         } else {
             // Video only
             console.log('[YouTube FM] Loading video:', videoId);
@@ -295,54 +312,341 @@ function loadVideo() {
     }
 }
 
+// --- Playlist Logic ---
+
+function loadPlaylist() {
+    const saved = localStorage.getItem(STORAGE_KEY_PLAYLIST);
+    if (saved) {
+        try {
+            customPlaylist = JSON.parse(saved);
+            renderPlaylist();
+        } catch (e) {
+            console.error('[YouTube FM] Error parsing playlist:', e);
+        }
+    }
+}
+
+function savePlaylist() {
+    localStorage.setItem(STORAGE_KEY_PLAYLIST, JSON.stringify(customPlaylist));
+}
+
+async function fetchVideoTitle(videoId) {
+    try {
+        const response = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`);
+        const data = await response.json();
+        if (data && data.title) {
+            return data.title;
+        }
+    } catch (e) {
+        console.warn('[YouTube FM] Error fetching video title:', e);
+    }
+    return null;
+}
+
+function addToPlaylist() {
+    const url = elements.urlInput.value.trim();
+    if (!url) return;
+
+    const videoId = extractVideoId(url);
+    if (!videoId) {
+        showError('Invalid YouTube URL');
+        return;
+    }
+
+    // Default title
+    let title = `Track ${customPlaylist.length + 1}`;
+    let isTitleFinal = false;
+
+    // 1. Try getting from player first (instant)
+    if (player && player.getVideoData && currentVideoId === videoId) {
+         const playerTitle = player.getVideoData().title;
+         if (playerTitle) {
+             title = playerTitle;
+             isTitleFinal = true;
+         }
+    }
+
+    // Add to array immediately so UI is responsive
+    const newItem = {
+        id: videoId,
+        title: title,
+        addedAt: Date.now()
+    };
+    customPlaylist.push(newItem);
+
+    savePlaylist();
+    renderPlaylist();
+    elements.urlInput.value = ''; // Clear input
+    
+    // Visual feedback
+    const originalText = elements.addToPlaylistBtn.textContent;
+    elements.addToPlaylistBtn.textContent = '✓';
+    setTimeout(() => elements.addToPlaylistBtn.textContent = originalText, 1000);
+
+    // 2. If title wasn't from player, fetch it in background
+    if (!isTitleFinal) {
+        fetchVideoTitle(videoId).then(fetchedTitle => {
+            // check if item is still in playlist
+            if (fetchedTitle && customPlaylist.includes(newItem)) {
+                newItem.title = fetchedTitle;
+                savePlaylist();
+                renderPlaylist();
+            }
+        });
+    }
+}
+
+function clearPlaylist() {
+    if (confirm('Clear entire playlist?')) {
+        customPlaylist = [];
+        customPlaylistIndex = -1;
+        savePlaylist();
+        renderPlaylist();
+    }
+}
+
+function renderPlaylist() {
+    elements.playlistContent.innerHTML = '';
+    
+    if (customPlaylist.length === 0) {
+        elements.playlistContent.innerHTML = '<div class="playlist-empty">QUEUE EMPTY</div>';
+        return;
+    }
+
+    customPlaylist.forEach((track, index) => {
+        const item = document.createElement('div');
+        item.className = `playlist-item ${index === customPlaylistIndex ? 'playing' : ''}`;
+        
+        // If we don't have a real title yet, try to fetch thumbnail or just show ID
+        const displayTitle = track.title.startsWith('Track') ? `Track ${index + 1} (${track.id})` : track.title;
+
+        item.innerHTML = `
+            <div class="item-title" title="${displayTitle}">${displayTitle}</div>
+            <button class="item-remove" onclick="removeTrack(event, ${index})">×</button>
+        `;
+        
+        item.addEventListener('click', (e) => {
+            if (!e.target.classList.contains('item-remove')) {
+                playCustomTrack(index);
+            }
+        });
+
+        elements.playlistContent.appendChild(item);
+    });
+}
+
+function removeTrack(e, index) {
+    e.stopPropagation();
+    customPlaylist.splice(index, 1);
+    
+    // Adjust index if we removed the playing track or one before it
+    if (index < customPlaylistIndex) {
+        customPlaylistIndex--;
+    } else if (index === customPlaylistIndex) {
+        // We removed the currently playing track. 
+        // We probably shouldn't stop playing immediately, but next track logic needs care.
+        // For now, let's just reset index if it goes out of bounds.
+        if (customPlaylistIndex >= customPlaylist.length) {
+            customPlaylistIndex = -1; // End of list
+        }
+    }
+    
+    savePlaylist();
+    renderPlaylist();
+}
+// Make removeTrack global so onclick works
+window.removeTrack = removeTrack;
+
+function playCustomTrack(index) {
+    if (index < 0 || index >= customPlaylist.length) return;
+    
+    customPlaylistIndex = index;
+    const track = customPlaylist[index];
+    
+    console.log('[YouTube FM] Playing custom track:', track.title);
+    
+    // Update UI highlighting
+    renderPlaylist();
+    
+    // Load the video
+    elements.urlInput.value = `https://youtu.be/${track.id}`;
+    loadVideo(); 
+    // loadVideo will set currentVideoId and call player.loadVideoById
+}
+
+// --- End Playlist Logic ---
+
 function prevTrack() {
     if (!player) return;
     console.log('[YouTube FM] Previous track');
+    
+    // Check if we are in a YouTube Playlist
     try {
-        player.previousVideo();
+        const playlist = player.getPlaylist();
+        if (playlist && playlist.length > 1) {
+            const currentIndex = player.getPlaylistIndex();
+            if (currentIndex > 0) {
+                player.previousVideo();
+                return;
+            }
+        }
     } catch (e) {
-        console.error('Error going to previous track:', e);
+        console.warn('Error checking YouTube playlist:', e);
+    }
+
+    // Check Custom Playlist
+    if (customPlaylist.length > 0) {
+        let prevIndex = customPlaylistIndex - 1;
+        if (prevIndex < 0) prevIndex = customPlaylist.length - 1; // Loop
+        
+        console.log('[YouTube FM] Playing previous custom track:', prevIndex);
+        playCustomTrack(prevIndex);
     }
 }
 
 function nextTrack() {
     if (!player) return;
     console.log('[YouTube FM] Next track');
+    
+    // Check if we are in a YouTube Playlist
     try {
-        player.nextVideo();
+        const playlist = player.getPlaylist();
+        if (playlist && playlist.length > 1) {
+             const currentIndex = player.getPlaylistIndex();
+             // Only use native next if not at the end, or if loop is enabled (we assume linear for now)
+             if (currentIndex < playlist.length - 1) {
+                 player.nextVideo();
+                 return;
+             }
+        }
     } catch (e) {
-        console.error('Error going to next track:', e);
+        console.warn('Error checking YouTube playlist:', e);
+    }
+
+    // Check Custom Playlist
+    if (customPlaylist.length > 0) {
+        let nextIndex = customPlaylistIndex + 1;
+        if (nextIndex >= customPlaylist.length) nextIndex = 0; // Loop
+        
+        console.log('[YouTube FM] Playing next custom track:', nextIndex);
+        playCustomTrack(nextIndex);
     }
 }
 
 function updateNavigationButtons() {
-    if (!player || !player.getPlaylist) return;
-    
-    try {
-        const playlist = player.getPlaylist();
-        const currentIndex = player.getPlaylistIndex();
-        
-        if (!playlist || playlist.length <= 1) {
+    let handled = false;
+
+    // 1. Check Native YouTube Playlist
+    if (player && player.getPlaylist) {
+        try {
+            const playlist = player.getPlaylist();
+            const currentIndex = player.getPlaylistIndex();
+            
+            if (playlist && playlist.length > 1) {
+                elements.prevBtn.disabled = (currentIndex === 0);
+                elements.nextBtn.disabled = (currentIndex === playlist.length - 1);
+                console.log(`[YouTube FM] Native Playlist update: ${currentIndex}/${playlist.length}`);
+                handled = true;
+            }
+        } catch (e) {
+            console.warn('[YouTube FM] Error updating nav buttons:', e);
+        }
+    }
+
+    // 2. Check Custom Playlist (only if native didn't take over)
+    if (!handled) {
+        if (customPlaylist.length > 0) {
+            // Always enable navigation for custom playlist (it loops)
+            elements.prevBtn.disabled = false;
+            elements.nextBtn.disabled = false;
+            console.log('[YouTube FM] Custom Playlist active, buttons enabled');
+            handled = true;
+        } else {
+            // No playlist active
             elements.prevBtn.disabled = true;
             elements.nextBtn.disabled = true;
-            return;
         }
-
-        // Enable/disable based on position
-        elements.prevBtn.disabled = (currentIndex === 0);
-        // YouTube playlists might loop, but standard behavior usually has an end
-        // unless loop is enabled. Let's assume linear navigation.
-        elements.nextBtn.disabled = (currentIndex === playlist.length - 1);
-        
-        console.log(`[YouTube FM] Playlist update: Index ${currentIndex}/${playlist.length}`);
-    } catch (e) {
-        console.warn('[YouTube FM] Error updating nav buttons:', e);
     }
 }
 
 function onPlayerStateChange(event) {
     console.log('[YouTube FM] Player state changed:', event.data);
     showLoading(false);
+
+    // --- Playlist Import Logic ---
+    if (pendingPlaylistImport && (event.data === YT.PlayerState.CUED || event.data === YT.PlayerState.PLAYING)) {
+        const playlist = player.getPlaylist();
+        if (playlist && playlist.length > 0) {
+            console.log('[YouTube FM] Importing native playlist:', playlist.length, 'tracks');
+            pendingPlaylistImport = false;
+            
+            // Clear existing custom playlist
+            customPlaylist = [];
+            customPlaylistIndex = -1;
+            
+            // Limit to 200 tracks to prevent performance issues and API spam
+            const MAX_PLAYLIST_SIZE = 200;
+            const tracksToImport = playlist.slice(0, MAX_PLAYLIST_SIZE);
+            
+            if (playlist.length > MAX_PLAYLIST_SIZE) {
+                console.warn(`[YouTube FM] Playlist truncated from ${playlist.length} to ${MAX_PLAYLIST_SIZE} tracks`);
+                showError(`Playlist truncated to first ${MAX_PLAYLIST_SIZE} tracks`);
+            }
+
+            // Populate with placeholders
+            tracksToImport.forEach((id, index) => {
+                customPlaylist.push({
+                    id: id,
+                    title: `Track ${index + 1} (Loading...)`,
+                    addedAt: Date.now()
+                });
+            });
+            
+            savePlaylist();
+            renderPlaylist();
+            
+            // Start fetching titles in background
+            const currentPlaylistSnapshot = customPlaylist; // Capture current reference
+            
+            tracksToImport.forEach((id, index) => {
+                // Add artificial delay to avoid hammering the proxy service too hard
+                setTimeout(() => {
+                    if (customPlaylist !== currentPlaylistSnapshot) return; // Playlist changed/cleared
+
+                    fetchVideoTitle(id).then(title => {
+                        if (title && customPlaylist[index] && customPlaylist[index].id === id) {
+                            customPlaylist[index].title = title;
+                            
+                            // If currently playing this track, update main title immediately if generic
+                            if (index === customPlaylistIndex && elements.trackTitle.textContent.includes('Loading...')) {
+                                elements.trackTitle.textContent = title;
+                            }
+                            
+                            renderPlaylist();
+                            savePlaylist();
+                        }
+                    });
+                }, index * 200); // Stagger requests by 200ms
+            });
+
+            // Play the target video or start from beginning
+            let startIndex = 0;
+            if (targetVideoId) {
+                // Check if target is in our imported set
+                const targetIndex = tracksToImport.indexOf(targetVideoId);
+                if (targetIndex !== -1) {
+                    startIndex = targetIndex;
+                } else {
+                    console.warn('[YouTube FM] Target video outside imported range, starting at 0');
+                }
+            }
+            
+            console.log('[YouTube FM] Starting imported playlist at index:', startIndex);
+            playCustomTrack(startIndex);
+            return; // Stop processing this event as we are restarting playback
+        }
+    }
+    // --- End Playlist Import Logic ---
 
     switch (event.data) {
         case YT.PlayerState.BUFFERING:
@@ -440,12 +744,30 @@ function onPlayerStateChange(event) {
             setVisualizerActive(false);
             elements.statusText.textContent = 'ENDED';
             elements.ledIndicator.classList.remove('playing');
-    elements.ledIndicator.classList.add('stopped');
-    elements.prevBtn.disabled = true;
-    elements.nextBtn.disabled = true;
-    elements.trackTitle.classList.remove('scrolling');
+            elements.ledIndicator.classList.add('stopped');
+            elements.prevBtn.disabled = true;
+            elements.nextBtn.disabled = true;
+            elements.trackTitle.classList.remove('scrolling');
             elements.progressFill.style.width = '0%';
             console.log('[YouTube FM] State: ENDED');
+
+            // Auto-advance logic for custom playlist
+            try {
+                const playlist = player.getPlaylist();
+                // If native playlist is active and has >1 items, YouTube handles it (usually).
+                // If it's a single video (length <= 1), check our custom playlist.
+                if (!playlist || playlist.length <= 1) {
+                    if (customPlaylist && customPlaylist.length > 0) {
+                        console.log('[YouTube FM] Song ended, checking custom playlist...');
+                        // Wait a moment for UX
+                        setTimeout(() => {
+                            nextTrack();
+                        }, 1000);
+                    }
+                }
+            } catch (e) {
+                console.warn('Error in auto-advance logic:', e);
+            }
             break;
         case YT.PlayerState.CUED:
             showLoading(false);
@@ -476,6 +798,69 @@ function onPlayerError(event) {
     const errorMsg = errors[event.data] || 'Playback error';
     showError(errorMsg);
     elements.statusText.textContent = 'ERROR';
+
+    // Auto-skip unplayable videos (100, 101, 150)
+    if (event.data === 100 || event.data === 101 || event.data === 150) {
+        console.log('[YouTube FM] Unplayable video detected. Removing and skipping in 2s...');
+        
+        // Try to get title for better UX
+        let title = '';
+        let trackIndexToRemove = -1;
+
+        // First check if we have it in our custom playlist state
+        if (customPlaylistIndex >= 0 && customPlaylistIndex < customPlaylist.length) {
+            title = customPlaylist[customPlaylistIndex].title;
+            trackIndexToRemove = customPlaylistIndex;
+        } 
+        // Fallback to player data if available (often not available on error)
+        else if (player && player.getVideoData) {
+            const data = player.getVideoData();
+            if (data && data.title) title = data.title;
+        }
+
+        const skipMsg = title ? `REMOVED: ${title}` : 'REMOVING TRACK...';
+        elements.statusText.textContent = 'ERROR/REMOVE'; 
+        elements.trackTitle.textContent = skipMsg; // Show full info in the scrolling text area
+        
+        // Clear any existing skip timer just in case
+        if (window.skipTimer) clearTimeout(window.skipTimer);
+        
+        window.skipTimer = setTimeout(() => {
+            console.log('[YouTube FM] Removing track and playing next.');
+            
+            if (trackIndexToRemove !== -1) {
+                // Remove from playlist
+                customPlaylist.splice(trackIndexToRemove, 1);
+                
+                // If we removed the last item, we need to loop to start or just stop
+                if (customPlaylist.length === 0) {
+                    customPlaylistIndex = -1;
+                    stopVideo();
+                    renderPlaylist();
+                    savePlaylist();
+                    elements.trackTitle.textContent = 'PLAYLIST EMPTY';
+                    return;
+                }
+
+                // If we removed the last item in the list, loop to 0
+                if (trackIndexToRemove >= customPlaylist.length) {
+                    customPlaylistIndex = 0;
+                } else {
+                    // Otherwise, the next track is now at the same index
+                    customPlaylistIndex = trackIndexToRemove;
+                }
+                
+                savePlaylist();
+                renderPlaylist();
+                
+                // Play the track at the new/same index
+                playCustomTrack(customPlaylistIndex);
+            } else {
+                // Fallback if not in custom playlist mode
+                nextTrack();
+            }
+        }, 2000);
+    }
 }
 
 function togglePlay() {
@@ -636,5 +1021,7 @@ function handleKeyboardControls(e) {
 // Initialize
 loadSettings();
 document.addEventListener('keydown', handleKeyboardControls);
+elements.addToPlaylistBtn.addEventListener('click', addToPlaylist);
+elements.clearPlaylistBtn.addEventListener('click', clearPlaylist);
 
 console.log('[YouTube FM] Initialization complete');

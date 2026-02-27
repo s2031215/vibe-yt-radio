@@ -30,6 +30,7 @@
         <div class="input-section">
             <input type="text" class="url-input" id="urlInput" placeholder="Paste YouTube URL here...">
             <button class="tune-btn" id="tuneBtn">TUNE</button>
+            <button class="tune-btn add-btn" id="addToPlaylistBtn" title="Add to Playlist">+</button>
         </div>
 
         <div class="visualizer">
@@ -70,6 +71,16 @@
         </div>
 
         <div class="error-message" id="errorMessage"></div>
+    </div>
+
+    <div class="playlist-panel" id="playlistPanel">
+        <div class="playlist-header">
+            <span class="tape-label">MY MIXTAPE A-SIDE</span>
+            <button class="clear-btn" id="clearPlaylistBtn" title="Clear Playlist">×</button>
+        </div>
+        <div class="playlist-content" id="playlistContent">
+            <div class="playlist-empty">QUEUE EMPTY</div>
+        </div>
     </div>
 
     <div class="loading-overlay" id="loadingOverlay">

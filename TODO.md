@@ -13,4 +13,7 @@
 - [x] **Playlist Support**: Implement "Next/Prev" buttons for playlist navigation
 
 ## Next Steps / Backlog
+- [ ] **Error Handling (Skip)**: Skip unplayable/restricted videos in playlists automatically
+- [ ] **Auto-Load**: Resume last played video/playlist on startup (cued)
+- [ ] **Custom Playlist UI**: Create a visual list to add/remove standalone songs and play them in sequence
 - [ ] **Mobile Optimization**: Further refine touch targets for mobile users
