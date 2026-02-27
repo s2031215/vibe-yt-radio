@@ -10,7 +10,7 @@
 - [x] **Fit Frequency Bars**: Bars fill container width (flexbox)
 - [x] **Persist Settings**: Save volume and last played station to `localStorage`
 - [x] **Keyboard Shortcuts**: Space (play/pause), Arrows (volume/seek), M (mute)
+- [x] **Playlist Support**: Implement "Next/Prev" buttons for playlist navigation
 
 ## Next Steps / Backlog
-- [ ] **Playlist Support**: Implement "Next/Prev" buttons for playlist navigation
 - [ ] **Mobile Optimization**: Further refine touch targets for mobile users

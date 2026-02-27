@@ -5,6 +5,8 @@ const elements = {
     tuneBtn: document.getElementById('tuneBtn'),
     playBtn: document.getElementById('playBtn'),
     stopBtn: document.getElementById('stopBtn'),
+    prevBtn: document.getElementById('prevBtn'),
+    nextBtn: document.getElementById('nextBtn'),
     volumeSlider: document.getElementById('volumeSlider'),
     volumeValue: document.getElementById('volumeValue'),
     trackTitle: document.getElementById('trackTitle'),
@@ -68,6 +70,23 @@ function extractVideoId(url) {
         }
     }
     console.warn('[YouTube FM] No video ID found in URL');
+    return null;
+}
+
+function extractPlaylistId(url) {
+    console.log('[YouTube FM] Extracting playlist ID from:', url);
+    const patterns = [
+        /[?&]list=([a-zA-Z0-9_-]+)/,
+        /youtube\.com\/playlist\?list=([a-zA-Z0-9_-]+)/
+    ];
+
+    for (const pattern of patterns) {
+        const match = url.match(pattern);
+        if (match) {
+            console.log('[YouTube FM] Playlist ID found:', match[1]);
+            return match[1];
+        }
+    }
     return null;
 }
 
@@ -197,6 +216,8 @@ function onPlayerReady(event) {
     });
     elements.playBtn.addEventListener('click', togglePlay);
     elements.stopBtn.addEventListener('click', stopVideo);
+    elements.prevBtn.addEventListener('click', prevTrack);
+    elements.nextBtn.addEventListener('click', nextTrack);
     elements.volumeSlider.addEventListener('input', updateVolume);
     elements.progressBar.addEventListener('click', seekTo);
 }
@@ -211,32 +232,111 @@ function loadVideo() {
     }
 
     const videoId = extractVideoId(url);
-    if (!videoId) {
+    const playlistId = extractPlaylistId(url);
+    
+    if (!videoId && !playlistId) {
         showError('Invalid YouTube URL');
         return;
     }
 
     showLoading(true);
-    currentVideoId = videoId;
-    console.log('[YouTube FM] Calling loadVideoById with:', videoId);
+    // Reset buttons
+    elements.prevBtn.disabled = true;
+    elements.nextBtn.disabled = true;
 
     // Save to localStorage
     try {
-        localStorage.setItem(STORAGE_KEY_LAST_VIDEO, videoId);
+        if (videoId) {
+            localStorage.setItem(STORAGE_KEY_LAST_VIDEO, videoId);
+        }
     } catch (e) {
         console.warn('[YouTube FM] Could not save last video:', e);
     }
 
     try {
         updateVolume();
-        player.loadVideoById({
-            videoId: videoId,
-            startSeconds: 0
-        });
+        
+        if (playlistId && !videoId) {
+            // Playlist only
+            console.log('[YouTube FM] Loading playlist:', playlistId);
+            currentVideoId = null; // Will be set by onStateChange
+            player.loadPlaylist({
+                list: playlistId,
+                listType: 'playlist',
+                index: 0,
+                startSeconds: 0
+            });
+        } else if (playlistId && videoId) {
+             // Both: Load video first, user won't have prev/next immediately 
+             // unless we can find the index. For MVP, we load the video.
+             // Improvement: We can try to load the playlist BUT we don't know the index.
+             // Compromise: Load the video directly. If the user wants the full playlist experience,
+             // they should use the playlist link or we just accept that deep-linking 
+             // into a playlist without index is hard without API key.
+             console.log('[YouTube FM] Loading video (ignoring playlist context for now):', videoId);
+             currentVideoId = videoId;
+             player.loadVideoById({
+                 videoId: videoId,
+                 startSeconds: 0
+             });
+        } else {
+            // Video only
+            console.log('[YouTube FM] Loading video:', videoId);
+            currentVideoId = videoId;
+            player.loadVideoById({
+                videoId: videoId,
+                startSeconds: 0
+            });
+        }
     } catch (e) {
         console.error('[YouTube FM] Error loading video:', e);
         showError('Error loading video: ' + e.message);
         showLoading(false);
+    }
+}
+
+function prevTrack() {
+    if (!player) return;
+    console.log('[YouTube FM] Previous track');
+    try {
+        player.previousVideo();
+    } catch (e) {
+        console.error('Error going to previous track:', e);
+    }
+}
+
+function nextTrack() {
+    if (!player) return;
+    console.log('[YouTube FM] Next track');
+    try {
+        player.nextVideo();
+    } catch (e) {
+        console.error('Error going to next track:', e);
+    }
+}
+
+function updateNavigationButtons() {
+    if (!player || !player.getPlaylist) return;
+    
+    try {
+        const playlist = player.getPlaylist();
+        const currentIndex = player.getPlaylistIndex();
+        
+        if (!playlist || playlist.length <= 1) {
+            elements.prevBtn.disabled = true;
+            elements.nextBtn.disabled = true;
+            return;
+        }
+
+        // Enable/disable based on position
+        elements.prevBtn.disabled = (currentIndex === 0);
+        // YouTube playlists might loop, but standard behavior usually has an end
+        // unless loop is enabled. Let's assume linear navigation.
+        elements.nextBtn.disabled = (currentIndex === playlist.length - 1);
+        
+        console.log(`[YouTube FM] Playlist update: Index ${currentIndex}/${playlist.length}`);
+    } catch (e) {
+        console.warn('[YouTube FM] Error updating nav buttons:', e);
     }
 }
 
@@ -253,6 +353,7 @@ function onPlayerStateChange(event) {
             isPlaying = true;
             elements.playBtn.disabled = false;
             elements.stopBtn.disabled = false;
+            updateNavigationButtons(); // Check prev/next buttons
             elements.statusText.textContent = 'ON AIR';
             elements.ledIndicator.classList.remove('stopped');
             elements.ledIndicator.classList.add('playing');
@@ -339,14 +440,17 @@ function onPlayerStateChange(event) {
             setVisualizerActive(false);
             elements.statusText.textContent = 'ENDED';
             elements.ledIndicator.classList.remove('playing');
-            elements.ledIndicator.classList.add('stopped');
-            elements.trackTitle.classList.remove('scrolling');
+    elements.ledIndicator.classList.add('stopped');
+    elements.prevBtn.disabled = true;
+    elements.nextBtn.disabled = true;
+    elements.trackTitle.classList.remove('scrolling');
             elements.progressFill.style.width = '0%';
             console.log('[YouTube FM] State: ENDED');
             break;
         case YT.PlayerState.CUED:
             showLoading(false);
             elements.playBtn.disabled = false;
+            updateNavigationButtons();
             elements.statusText.textContent = 'READY';
             elements.trackTitle.textContent = 'Press PLAY to start';
             console.log('[YouTube FM] State: CUED (ready to play)');
