@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube FM - Radio Player</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Press+Start+2P&family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="radio-container">
+        <div class="radio-header">
+            <div class="brand">YOUTUBE FM</div>
+            <div class="brand-sub">INTERNET RADIO</div>
+        </div>
+
+        <div class="display-panel">
+            <div class="station-display">
+                <div class="led-indicator stopped" id="ledIndicator"></div>
+                <span id="statusText">NO SIGNAL</span>
+            </div>
+            <div class="track-title" id="trackTitle">---</div>
+        </div>
+
+        <div class="error-message" id="errorMessage"></div>
+
+        <div class="input-section">
+            <input type="text" class="url-input" id="urlInput" placeholder="Paste YouTube URL here...">
+            <button class="tune-btn" id="tuneBtn">TUNE</button>
+        </div>
+
+        <div class="visualizer">
+            <div class="dial-container">
+                <div class="dial-needle" id="dialNeedle"></div>
+            </div>
+            <div class="frequency-bars" id="freqBars">
+            </div>
+        </div>
+
+        <div class="progress-bar" id="progressBar">
+            <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div class="time-display">
+            <span id="currentTime">0:00</span>
+            <span id="duration">0:00</span>
+        </div>
+
+        <div class="controls">
+            <button class="control-btn secondary" id="stopBtn" disabled>
+                <svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12"/></svg>
+            </button>
+            <button class="control-btn play-btn" id="playBtn" disabled>
+                <svg viewBox="0 0 24 24" id="playIcon"><polygon points="5,3 19,12 5,21"/></svg>
+            </button>
+        </div>
+
+        <div class="volume-section">
+            <span class="volume-icon">🔊</span>
+            <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="70">
+            <span class="volume-value" id="volumeValue">70%</span>
+        </div>
+    </div>
+
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loader"></div>
+    </div>
+
+    <div id="player"></div>
+
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <script src="script.js"></script>
+</body>
+</html>
