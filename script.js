@@ -175,10 +175,14 @@ function updateDialNeedle() {
         return;
     }
 
+    // Guard against negative index (default to 0)
+    let index = customPlaylistIndex;
+    if (index < 0) index = 0;
+
     // Map current index to 5% - 95% range
     // index 0 -> 5%
     // index max -> 95%
-    const percentage = customPlaylistIndex / (customPlaylist.length - 1);
+    const percentage = index / (customPlaylist.length - 1);
     const position = 5 + (percentage * 90);
     
     elements.dialNeedle.style.left = `${position}%`;
@@ -257,13 +261,16 @@ function onPlayerReady(event) {
     if (savedVideo && !currentVideoId) {
         console.log('[YouTube FM] Auto-cueing last video:', savedVideo);
         currentVideoId = savedVideo;
-        // Check if it looks like a playlist ID was saved? 
-        // Our storage currently only saves video IDs in that key mostly.
-        // But let's check input field just in case it has a playlist URL
         
-        // Actually simpler: just cue the video ID we have. 
-        // If we want full state restoration including playlist, we'd need to save playlist ID too.
-        // For now, restoring the video is a good start.
+        // Try to find this video in the restored playlist to set the correct index
+        const savedIndex = customPlaylist.findIndex(item => item.id === savedVideo);
+        if (savedIndex !== -1) {
+            console.log('[YouTube FM] Restoring playlist index:', savedIndex);
+            customPlaylistIndex = savedIndex;
+            updateDialNeedle();
+            renderPlaylist(); // Highlight the track
+        }
+        
         player.cueVideoById(savedVideo);
         elements.statusText.textContent = 'READY';
     }
