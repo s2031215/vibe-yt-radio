@@ -5,7 +5,6 @@
 A nostalgic, retro-styled web radio player that turns YouTube videos and playlists into your personal station. Tune in to your favorite tracks with a classic interface featuring animated dials, frequency bars, and vintage aesthetics.
 
 ![YouTube FM Screenshot](screenshot.png) 
-*(Note: Add a screenshot here later if you wish)*
 
 ## 📻 Features
 
