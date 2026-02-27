@@ -198,6 +198,7 @@ function onPlayerStateChange(event) {
             elements.ledIndicator.classList.remove('stopped');
             elements.ledIndicator.classList.add('playing');
             elements.dialNeedle.style.left = `${30 + Math.random() * 40}%`;
+            updateVolume();
             updatePlayButton();
             setVisualizerActive(true);
             
