@@ -229,6 +229,9 @@ function onPlayerReady(event) {
     elements.volumeSlider.addEventListener('input', updateVolume);
     elements.progressBar.addEventListener('click', seekTo);
 
+    // Apply stored volume immediately
+    updateVolume();
+
     // Load custom playlist
     loadPlaylist();
 
