@@ -21,7 +21,7 @@ const elements = {
     errorMessage: document.getElementById('errorMessage'),
     loadingOverlay: document.getElementById('loadingOverlay'),
     playIcon: document.getElementById('playIcon'),
-    addToPlaylistBtn: document.getElementById('addToPlaylistBtn'),
+    // addToPlaylistBtn removed
     playlistContent: document.getElementById('playlistContent'),
     clearPlaylistBtn: document.getElementById('clearPlaylistBtn')
 };
@@ -218,9 +218,10 @@ function onYouTubeIframeAPIReady() {
 
 function onPlayerReady(event) {
     console.log('[YouTube FM] Player ready!');
-    elements.tuneBtn.addEventListener('click', loadVideo);
+    // Combined logic: TUNE button acts as Add+Play
+    elements.tuneBtn.addEventListener('click', handleTuneButton);
     elements.urlInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') loadVideo();
+        if (e.key === 'Enter') handleTuneButton();
     });
     elements.playBtn.addEventListener('click', togglePlay);
     elements.stopBtn.addEventListener('click', stopVideo);
@@ -250,6 +251,79 @@ function onPlayerReady(event) {
         player.cueVideoById(savedVideo);
         elements.statusText.textContent = 'READY';
     }
+}
+
+function handleTuneButton() {
+    const url = elements.urlInput.value.trim();
+    if (!url) {
+        showError('Please enter a YouTube URL');
+        return;
+    }
+
+    const videoId = extractVideoId(url);
+    const playlistId = extractPlaylistId(url);
+
+    if (!videoId && !playlistId) {
+        showError('Invalid YouTube URL');
+        return;
+    }
+
+    if (playlistId) {
+        // If it's a playlist, always load/import it
+        loadVideo();
+        return;
+    }
+
+    if (videoId) {
+        // Check if this video is already in our playlist
+        const existingIndex = customPlaylist.findIndex(item => item.id === videoId);
+
+        if (existingIndex !== -1) {
+            // Already in playlist -> just play it
+            console.log('[YouTube FM] Video already in playlist, jumping to it:', existingIndex);
+            playCustomTrack(existingIndex);
+            elements.urlInput.value = ''; // Clear input
+        } else {
+            // Not in playlist -> add it and play it
+            console.log('[YouTube FM] New video, adding to playlist and playing');
+            addToPlaylistAndPlay(videoId);
+        }
+    }
+}
+
+// Modified to accept ID directly and play immediately
+function addToPlaylistAndPlay(videoId) {
+    // Default title
+    let title = `Track ${customPlaylist.length + 1}`;
+    
+    // Add to array
+    const newItem = {
+        id: videoId,
+        title: title,
+        addedAt: Date.now()
+    };
+    customPlaylist.push(newItem);
+    const newIndex = customPlaylist.length - 1;
+
+    savePlaylist();
+    renderPlaylist();
+    elements.urlInput.value = ''; // Clear input
+    
+    // Fetch title in background
+    fetchVideoTitle(videoId).then(fetchedTitle => {
+        if (fetchedTitle && customPlaylist[newIndex] && customPlaylist[newIndex].id === videoId) {
+            customPlaylist[newIndex].title = fetchedTitle;
+            savePlaylist();
+            renderPlaylist();
+            // Update main display if still playing this track
+            if (customPlaylistIndex === newIndex) {
+                 elements.trackTitle.textContent = fetchedTitle;
+            }
+        }
+    });
+
+    // Play immediately
+    playCustomTrack(newIndex);
 }
 
 function loadVideo() {
@@ -346,57 +420,85 @@ async function fetchVideoTitle(videoId) {
     return null;
 }
 
-function addToPlaylist() {
+function handleTuneButton() {
     const url = elements.urlInput.value.trim();
-    if (!url) return;
+    if (!url) {
+        showError('Please enter a YouTube URL');
+        return;
+    }
 
     const videoId = extractVideoId(url);
-    if (!videoId) {
+    const playlistId = extractPlaylistId(url);
+
+    if (!videoId && !playlistId) {
         showError('Invalid YouTube URL');
         return;
     }
 
-    // Default title
-    let title = `Track ${customPlaylist.length + 1}`;
-    let isTitleFinal = false;
-
-    // 1. Try getting from player first (instant)
-    if (player && player.getVideoData && currentVideoId === videoId) {
-         const playerTitle = player.getVideoData().title;
-         if (playerTitle) {
-             title = playerTitle;
-             isTitleFinal = true;
-         }
+    if (playlistId) {
+        // If it's a playlist, load it (which triggers import)
+        loadVideo();
+        return;
     }
 
-    // Add to array immediately so UI is responsive
+    if (videoId) {
+        // Check if this video is already in our playlist
+        const existingIndex = customPlaylist.findIndex(item => item.id === videoId);
+
+        if (existingIndex !== -1) {
+            // Already in playlist -> just play it
+            console.log('[YouTube FM] Video already in playlist, jumping to it:', existingIndex);
+            playCustomTrack(existingIndex);
+            elements.urlInput.value = ''; // Clear input
+        } else {
+            // Not in playlist -> add it and play it
+            console.log('[YouTube FM] New video, adding to playlist and playing');
+            addToPlaylistAndPlay(videoId);
+        }
+    }
+}
+
+function addToPlaylistAndPlay(videoId) {
+    // Default title
+    let title = `Track ${customPlaylist.length + 1}`;
+    
+    // Add to array
     const newItem = {
         id: videoId,
         title: title,
         addedAt: Date.now()
     };
+    
     customPlaylist.push(newItem);
+    const newIndex = customPlaylist.length - 1; // Index of the newly added item
 
     savePlaylist();
     renderPlaylist();
     elements.urlInput.value = ''; // Clear input
     
-    // Visual feedback
-    const originalText = elements.addToPlaylistBtn.textContent;
-    elements.addToPlaylistBtn.textContent = '✓';
-    setTimeout(() => elements.addToPlaylistBtn.textContent = originalText, 1000);
-
-    // 2. If title wasn't from player, fetch it in background
-    if (!isTitleFinal) {
-        fetchVideoTitle(videoId).then(fetchedTitle => {
-            // check if item is still in playlist
-            if (fetchedTitle && customPlaylist.includes(newItem)) {
-                newItem.title = fetchedTitle;
-                savePlaylist();
-                renderPlaylist();
+    // Play immediately
+    playCustomTrack(newIndex);
+    
+    // Fetch title in background
+    fetchVideoTitle(videoId).then(fetchedTitle => {
+        // We need to find the item again because playlist might have changed (e.g. removed/cleared)
+        // But the object reference 'newItem' should still be valid if it's in the array
+        if (fetchedTitle && customPlaylist.includes(newItem)) {
+            newItem.title = fetchedTitle;
+            savePlaylist();
+            renderPlaylist();
+            
+            // If we are currently playing this exact track, update the main title display
+            if (customPlaylistIndex === customPlaylist.indexOf(newItem)) {
+                 elements.trackTitle.textContent = fetchedTitle;
             }
-        });
-    }
+        }
+    });
+}
+
+// Replaces old addToPlaylist logic
+function addToPlaylist() {
+    handleTuneButton();
 }
 
 function clearPlaylist() {
@@ -1024,7 +1126,7 @@ function handleKeyboardControls(e) {
 // Initialize
 loadSettings();
 document.addEventListener('keydown', handleKeyboardControls);
-elements.addToPlaylistBtn.addEventListener('click', addToPlaylist);
+// elements.addToPlaylistBtn removed
 elements.clearPlaylistBtn.addEventListener('click', clearPlaylist);
 
 console.log('[YouTube FM] Initialization complete');
