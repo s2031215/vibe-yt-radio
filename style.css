@@ -152,24 +152,41 @@ body {
     50% { opacity: 0.7; transform: scale(1.2); }
 }
 
+.track-title-container {
+    overflow: hidden;
+    width: 100%;
+    position: relative;
+    text-align: center; /* Center normally */
+    min-height: 24px;
+    display: flex; /* Helps in centering */
+    justify-content: center;
+    align-items: center; /* Vertical center */
+}
+
 .track-title {
     font-family: 'Orbitron', sans-serif;
     font-size: 16px;
     font-weight: 700;
     color: var(--text-light);
-    text-align: center;
-    min-height: 24px;
-    overflow: hidden;
     white-space: nowrap;
+    display: inline-block;
 }
 
+/* When scrolling is active */
 .track-title.scrolling {
-    animation: scroll-text 12s linear infinite;
+    animation: scroll-text linear infinite; /* Duration set by JS */
+    padding-left: 100%; /* Start from the far right of the container */
+    flex-shrink: 0; /* Prevent shrinking in flex container */
+}
+
+/* Ensure container aligns start when scrolling to avoid centering causing offset issues */
+.track-title-container:has(.scrolling) {
+    justify-content: flex-start;
 }
 
 @keyframes scroll-text {
-    0% { transform: translateX(50%); }
-    100% { transform: translateX(-50%); }
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-100%); }
 }
 
 .input-section {
@@ -287,7 +304,8 @@ body {
 }
 
 .freq-bar {
-    width: 6px;
+    flex: 1;
+    min-width: 2px;
     background: var(--accent-red);
     border-radius: 3px;
     transition: height 0.1s ease;

@@ -27,7 +27,7 @@ let currentVideoId = null;
 let progressInterval;
 
 console.log('[YouTube FM] Creating frequency bars...');
-for (let i = 0; i < 20; i++) {
+for (let i = 0; i < 32; i++) {
     const bar = document.createElement('div');
     bar.className = 'freq-bar';
     bar.style.height = '10px';
@@ -205,6 +205,24 @@ function onPlayerStateChange(event) {
                 const title = player.getVideoData().title;
                 console.log('[YouTube FM] Now playing:', title);
                 elements.trackTitle.textContent = title || 'Unknown Track';
+                
+                // Add scrolling logic for long titles
+                elements.trackTitle.classList.remove('scrolling'); 
+                elements.trackTitle.style.animationDuration = ''; // Reset duration
+                void elements.trackTitle.offsetWidth; // Trigger reflow
+                
+                // Check if text overflows the container
+                const containerWidth = elements.trackTitle.parentElement.clientWidth;
+                const textWidth = elements.trackTitle.scrollWidth;
+
+                if (textWidth > containerWidth) {
+                    elements.trackTitle.classList.add('scrolling');
+                    // Calculate duration based on speed: distance / speed
+                    // Distance is roughly containerWidth + textWidth
+                    // Target speed ~50px/sec
+                    const duration = (textWidth + containerWidth) / 50;
+                    elements.trackTitle.style.animationDuration = `${Math.max(10, duration)}s`;
+                }
             } catch (e) {
                 console.warn('[YouTube FM] Could not get video title:', e.message);
                 elements.trackTitle.textContent = 'Now Playing';
@@ -212,6 +230,27 @@ function onPlayerStateChange(event) {
 
             if (progressInterval) clearInterval(progressInterval);
             progressInterval = setInterval(updateProgress, 100);
+            
+            // Re-check scrolling after a short delay to ensure rendering is complete
+            setTimeout(() => {
+                // Ensure fresh measurements by removing scrolling class first
+                elements.trackTitle.classList.remove('scrolling');
+                elements.trackTitle.style.animationDuration = '';
+                void elements.trackTitle.offsetWidth; // Force reflow
+
+                const textWidth = elements.trackTitle.scrollWidth;
+                const containerWidth = elements.trackTitle.parentElement.clientWidth;
+                
+                if (textWidth > containerWidth) {
+                    elements.trackTitle.classList.add('scrolling');
+                    // Distance is full width of element (padding + text) which is containerWidth + textWidth
+                    // Speed = distance / duration => duration = distance / speed
+                    // Let's target roughly 50px/sec speed for readability
+                    const duration = (textWidth + containerWidth) / 50; 
+                    elements.trackTitle.style.animationDuration = `${Math.max(10, duration)}s`;
+                }
+            }, 500);
+            
             console.log('[YouTube FM] State: PLAYING');
             break;
         case YT.PlayerState.PAUSED:
@@ -220,6 +259,7 @@ function onPlayerStateChange(event) {
             setVisualizerActive(false);
             elements.statusText.textContent = 'PAUSED';
             elements.ledIndicator.classList.remove('playing');
+            elements.trackTitle.classList.remove('scrolling');
             console.log('[YouTube FM] State: PAUSED');
             break;
         case YT.PlayerState.ENDED:
@@ -229,6 +269,7 @@ function onPlayerStateChange(event) {
             elements.statusText.textContent = 'ENDED';
             elements.ledIndicator.classList.remove('playing');
             elements.ledIndicator.classList.add('stopped');
+            elements.trackTitle.classList.remove('scrolling');
             elements.progressFill.style.width = '0%';
             console.log('[YouTube FM] State: ENDED');
             break;
@@ -296,6 +337,7 @@ function stopVideo() {
     elements.statusText.textContent = 'STOPPED';
     elements.ledIndicator.classList.remove('playing');
     elements.ledIndicator.classList.add('stopped');
+    elements.trackTitle.classList.remove('scrolling');
     elements.trackTitle.textContent = '---';
     elements.progressFill.style.width = '0%';
     elements.currentTime.textContent = '0:00';
