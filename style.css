@@ -175,9 +175,11 @@ body {
 /* When scrolling is active */
 .track-title.scrolling {
     animation: scroll-text linear infinite; /* Duration set by JS */
+    animation-delay: 2s; /* Initial wait before scrolling starts */
     padding-left: 0; 
     transform: translateX(0); 
     flex-shrink: 0; 
+    --scroll-dist: 0px; /* Default */
 }
 
 /* Ensure container aligns start when scrolling to avoid centering causing offset issues */
@@ -187,18 +189,13 @@ body {
 
 @keyframes scroll-text {
     0% { transform: translateX(0); } /* Start visible at left */
-    20% { transform: translateX(0); } /* Pause briefly */
-    100% { transform: translateX(-100%); } /* Scroll completely to the left */
-}
-
-/* Ensure container aligns start when scrolling to avoid centering causing offset issues */
-.track-title-container:has(.scrolling) {
-    justify-content: flex-start;
-}
-
-@keyframes scroll-text {
-    0% { transform: translateX(0); }
-    100% { transform: translateX(-100%); }
+    20% { transform: translateX(0); } /* Wait at start (proportional) */
+    
+    /* Scroll to exact end distance */
+    80% { transform: translateX(calc(-1 * var(--scroll-dist))); } 
+    
+    /* Hold at end */
+    100% { transform: translateX(calc(-1 * var(--scroll-dist))); }
 }
 
 .input-section {

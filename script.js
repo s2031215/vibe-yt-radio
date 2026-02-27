@@ -59,7 +59,7 @@ function extractVideoId(url) {
         /youtube\.com\/v\/([a-zA-Z0-9_-]{11})/,
         /youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/
     ];
-    
+
     for (const pattern of patterns) {
         const match = url.match(pattern);
         if (match) {
@@ -98,7 +98,7 @@ function updateVisualizerBars() {
 
         // Combine waves
         let heightFactor = (wave1 + wave2 + wave3) / 3;
-        
+
         // Add absolute value for bounce
         heightFactor = Math.abs(heightFactor);
 
@@ -113,7 +113,7 @@ function updateVisualizerBars() {
 
         // Apply height (5px to 45px)
         const h = 5 + (heightFactor * 40);
-        
+
         bar.style.height = `${h}px`;
     });
 
@@ -123,7 +123,7 @@ function updateVisualizerBars() {
 function setVisualizerActive(active) {
     console.log('[YouTube FM] Visualizer:', active ? 'active' : 'inactive');
     const bars = elements.freqBars.querySelectorAll('.freq-bar');
-    
+
     if (active) {
         bars.forEach(bar => bar.classList.add('active'));
         if (!visualizerAnimationFrame) {
@@ -146,7 +146,7 @@ function updateProgress() {
         try {
             const currentTime = player.getCurrentTime();
             const duration = player.getDuration();
-            
+
             if (duration > 0) {
                 const percent = (currentTime / duration) * 100;
                 elements.progressFill.style.width = `${percent}%`;
@@ -204,7 +204,7 @@ function onPlayerReady(event) {
 function loadVideo() {
     const url = elements.urlInput.value.trim();
     console.log('[YouTube FM] Loading video from URL:', url);
-    
+
     if (!url) {
         showError('Please enter a YouTube URL');
         return;
@@ -259,28 +259,30 @@ function onPlayerStateChange(event) {
             elements.dialNeedle.style.left = `${30 + Math.random() * 40}%`;
             updatePlayButton();
             setVisualizerActive(true);
-            
+
             try {
                 const title = player.getVideoData().title;
                 console.log('[YouTube FM] Now playing:', title);
                 elements.trackTitle.textContent = title || 'Unknown Track';
-                
+
                 // Add scrolling logic for long titles
-                elements.trackTitle.classList.remove('scrolling'); 
+                elements.trackTitle.classList.remove('scrolling');
                 elements.trackTitle.style.animationDuration = ''; // Reset duration
+                elements.trackTitle.style.setProperty('--scroll-dist', '0px');
                 void elements.trackTitle.offsetWidth; // Trigger reflow
-                
+
                 // Check if text overflows the container
                 const containerWidth = elements.trackTitle.parentElement.clientWidth;
                 const textWidth = elements.trackTitle.scrollWidth;
 
                 if (textWidth > containerWidth) {
+                    const scrollDist = textWidth - containerWidth;
+                    elements.trackTitle.style.setProperty('--scroll-dist', `${scrollDist}px`);
                     elements.trackTitle.classList.add('scrolling');
-                    // Calculate duration based on speed: distance / speed
-                    // Distance is roughly containerWidth + textWidth
-                    // Target speed ~50px/sec
-                    const duration = (textWidth) / 50;
-                    elements.trackTitle.style.animationDuration = `${Math.max(10, duration)}s`;
+                    // Same duration logic as the delayed check
+                    const scrollTime = scrollDist / 50;
+                    const totalDuration = scrollTime / 0.8;
+                    elements.trackTitle.style.animationDuration = `${Math.max(3, totalDuration)}s`;
                 }
             } catch (e) {
                 console.warn('[YouTube FM] Could not get video title:', e.message);
@@ -289,26 +291,37 @@ function onPlayerStateChange(event) {
 
             if (progressInterval) clearInterval(progressInterval);
             progressInterval = setInterval(updateProgress, 100);
-            
+
             // Re-check scrolling after a short delay to ensure rendering is complete
             setTimeout(() => {
                 // Ensure fresh measurements by removing scrolling class first
                 elements.trackTitle.classList.remove('scrolling');
                 elements.trackTitle.style.animationDuration = '';
+                elements.trackTitle.style.setProperty('--scroll-dist', '0px');
                 void elements.trackTitle.offsetWidth; // Force reflow
 
                 const textWidth = elements.trackTitle.scrollWidth;
                 const containerWidth = elements.trackTitle.parentElement.clientWidth;
-                
+
                 if (textWidth > containerWidth) {
+                    const scrollDist = textWidth - containerWidth;
+                    elements.trackTitle.style.setProperty('--scroll-dist', `${scrollDist}px`);
                     elements.trackTitle.classList.add('scrolling');
-                    // Distance is just text width (scrolling out of view)
-                    // Speed ~50px/sec
-                    const duration = textWidth / 50;
-                    elements.trackTitle.style.animationDuration = `${Math.max(10, duration)}s`;
+
+                    // Duration calculation:
+                    // 1. Scroll distance: scrollDist
+                    // 2. Speed: 50px/sec
+                    // 3. Pause at end: ~1s (We'll pad the duration to include this)
+                    // Let's say we want 80% of time scrolling, 20% waiting at end.
+                    // scrollTime = scrollDist / 50
+                    // totalTime = scrollTime / 0.8
+                    const scrollTime = scrollDist / 50;
+                    const totalDuration = scrollTime / 0.8;
+
+                    elements.trackTitle.style.animationDuration = `${Math.max(3, totalDuration)}s`;
                 }
             }, 500);
-            
+
             console.log('[YouTube FM] State: PLAYING');
             break;
         case YT.PlayerState.PAUSED:
@@ -382,13 +395,13 @@ function togglePlay() {
 function stopVideo() {
     console.log('[YouTube FM] Stopping video');
     if (!player) return;
-    
+
     try {
         player.stopVideo();
     } catch (e) {
         console.error('[YouTube FM] Error stopping video:', e);
     }
-    
+
     isPlaying = false;
     updatePlayButton();
     setVisualizerActive(false);
@@ -405,7 +418,7 @@ function stopVideo() {
 function updateVolume() {
     const volume = elements.volumeSlider.value;
     elements.volumeValue.textContent = `${volume}%`;
-    
+
     // Save to localStorage
     try {
         localStorage.setItem(STORAGE_KEY_VOLUME, volume);
@@ -425,7 +438,7 @@ function updateVolume() {
 function seekTo(e) {
     console.log('[YouTube FM] Seeking...');
     if (!player || !player.getDuration) return;
-    
+
     try {
         const rect = elements.progressBar.getBoundingClientRect();
         const percent = (e.clientX - rect.left) / rect.width;
@@ -488,7 +501,7 @@ function handleKeyboardControls(e) {
 
     if (!player || !currentVideoId) return;
 
-    switch(e.code) {
+    switch (e.code) {
         case 'Space':
         case 'KeyK': // YouTube standard shortcut
             e.preventDefault();
@@ -507,12 +520,12 @@ function handleKeyboardControls(e) {
             }
             break;
         case 'KeyM': // Mute toggle (optional but nice)
-             if (player.isMuted()) {
-                 player.unMute();
-             } else {
-                 player.mute();
-             }
-             break;
+            if (player.isMuted()) {
+                player.unMute();
+            } else {
+                player.mute();
+            }
+            break;
     }
 }
 
