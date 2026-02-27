@@ -168,6 +168,22 @@ function setVisualizerActive(active) {
     }
 }
 
+function updateDialNeedle() {
+    // If only one song or none, center the needle (50%)
+    if (customPlaylist.length <= 1) {
+        elements.dialNeedle.style.left = '50%';
+        return;
+    }
+
+    // Map current index to 5% - 95% range
+    // index 0 -> 5%
+    // index max -> 95%
+    const percentage = customPlaylistIndex / (customPlaylist.length - 1);
+    const position = 5 + (percentage * 90);
+    
+    elements.dialNeedle.style.left = `${position}%`;
+}
+
 function updateProgress() {
     if (player && player.getCurrentTime && player.getDuration) {
         try {
@@ -253,78 +269,9 @@ function onPlayerReady(event) {
     }
 }
 
-function handleTuneButton() {
-    const url = elements.urlInput.value.trim();
-    if (!url) {
-        showError('Please enter a YouTube URL');
-        return;
-    }
-
-    const videoId = extractVideoId(url);
-    const playlistId = extractPlaylistId(url);
-
-    if (!videoId && !playlistId) {
-        showError('Invalid YouTube URL');
-        return;
-    }
-
-    if (playlistId) {
-        // If it's a playlist, always load/import it
-        loadVideo();
-        return;
-    }
-
-    if (videoId) {
-        // Check if this video is already in our playlist
-        const existingIndex = customPlaylist.findIndex(item => item.id === videoId);
-
-        if (existingIndex !== -1) {
-            // Already in playlist -> just play it
-            console.log('[YouTube FM] Video already in playlist, jumping to it:', existingIndex);
-            playCustomTrack(existingIndex);
-            elements.urlInput.value = ''; // Clear input
-        } else {
-            // Not in playlist -> add it and play it
-            console.log('[YouTube FM] New video, adding to playlist and playing');
-            addToPlaylistAndPlay(videoId);
-        }
-    }
-}
 
 // Modified to accept ID directly and play immediately
-function addToPlaylistAndPlay(videoId) {
-    // Default title
-    let title = `Track ${customPlaylist.length + 1}`;
-    
-    // Add to array
-    const newItem = {
-        id: videoId,
-        title: title,
-        addedAt: Date.now()
-    };
-    customPlaylist.push(newItem);
-    const newIndex = customPlaylist.length - 1;
-
-    savePlaylist();
-    renderPlaylist();
-    elements.urlInput.value = ''; // Clear input
-    
-    // Fetch title in background
-    fetchVideoTitle(videoId).then(fetchedTitle => {
-        if (fetchedTitle && customPlaylist[newIndex] && customPlaylist[newIndex].id === videoId) {
-            customPlaylist[newIndex].title = fetchedTitle;
-            savePlaylist();
-            renderPlaylist();
-            // Update main display if still playing this track
-            if (customPlaylistIndex === newIndex) {
-                 elements.trackTitle.textContent = fetchedTitle;
-            }
-        }
-    });
-
-    // Play immediately
-    playCustomTrack(newIndex);
-}
+// (Duplicate function removed)
 
 function loadVideo() {
     const url = elements.urlInput.value.trim();
@@ -538,6 +485,8 @@ function renderPlaylist() {
 
         elements.playlistContent.appendChild(item);
     });
+
+    updateDialNeedle();
 }
 
 function removeTrack(e, index) {
@@ -572,6 +521,7 @@ function playCustomTrack(index) {
     
     // Update UI highlighting
     renderPlaylist();
+    updateDialNeedle();
     
     // Load the video
     elements.urlInput.value = `https://youtu.be/${track.id}`;
@@ -766,7 +716,7 @@ function onPlayerStateChange(event) {
             elements.statusText.textContent = 'ON AIR';
             elements.ledIndicator.classList.remove('stopped');
             elements.ledIndicator.classList.add('playing');
-            elements.dialNeedle.style.left = `${30 + Math.random() * 40}%`;
+            updateDialNeedle();
             updatePlayButton();
             setVisualizerActive(true);
 

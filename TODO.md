@@ -11,9 +11,9 @@
 - [x] **Persist Settings**: Save volume and last played station to `localStorage`
 - [x] **Keyboard Shortcuts**: Space (play/pause), Arrows (volume/seek), M (mute)
 - [x] **Playlist Support**: Implement "Next/Prev" buttons for playlist navigation
+- [X] **Error Handling (Skip)**: Skip unplayable/restricted videos in playlists automatically
 
 ## Next Steps / Backlog
-- [ ] **Error Handling (Skip)**: Skip unplayable/restricted videos in playlists automatically
-- [ ] **Auto-Load**: Resume last played video/playlist on startup (cued)
-- [ ] **Custom Playlist UI**: Create a visual list to add/remove standalone songs and play them in sequence
+- [ ] **Integrated Playlist**: Moved playlist inside the main radio container.
+- [ ] **Toggle View**: Implemented logic to switch between Radio and Playlist views.
 - [ ] **Mobile Optimization**: Further refine touch targets for mobile users
