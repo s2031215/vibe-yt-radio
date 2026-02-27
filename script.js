@@ -371,6 +371,6 @@ function seekTo(e) {
     }
 }
 
-elements.volumeSlider.value = 70;
+elements.volumeSlider.value = 20;
 
 console.log('[YouTube FM] Initialization complete');
