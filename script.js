@@ -228,6 +228,7 @@ function loadVideo() {
     }
 
     try {
+        updateVolume();
         player.loadVideoById({
             videoId: videoId,
             startSeconds: 0
@@ -256,7 +257,6 @@ function onPlayerStateChange(event) {
             elements.ledIndicator.classList.remove('stopped');
             elements.ledIndicator.classList.add('playing');
             elements.dialNeedle.style.left = `${30 + Math.random() * 40}%`;
-            updateVolume();
             updatePlayButton();
             setVisualizerActive(true);
             
@@ -279,7 +279,7 @@ function onPlayerStateChange(event) {
                     // Calculate duration based on speed: distance / speed
                     // Distance is roughly containerWidth + textWidth
                     // Target speed ~50px/sec
-                    const duration = (textWidth + containerWidth) / 50;
+                    const duration = (textWidth) / 50;
                     elements.trackTitle.style.animationDuration = `${Math.max(10, duration)}s`;
                 }
             } catch (e) {
