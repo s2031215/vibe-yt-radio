@@ -779,3 +779,99 @@ body {
 .add-btn:hover {
     background: linear-gradient(145deg, #555, #444);
 }
+
+/* Mobile Optimization */
+@media (max-width: 768px) {
+    body {
+        padding: 10px;
+        gap: 15px;
+    }
+
+    .radio-container, .playlist-panel {
+        max-width: 100%;
+        width: 100%;
+    }
+    
+    .playlist-panel {
+        height: auto;
+        min-height: 400px;
+    }
+}
+
+@media (max-width: 480px) {
+    .radio-container {
+        padding: 20px;
+        border-radius: 20px;
+    }
+
+    .brand {
+        font-size: 22px;
+        letter-spacing: 2px;
+    }
+
+    .display-panel {
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+
+    .station-display {
+        font-size: 12px;
+    }
+    
+    .track-title {
+        font-size: 14px;
+    }
+
+    .visualizer {
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+    
+    .dial-container {
+        height: 30px;
+    }
+    
+    .frequency-bars {
+        height: 40px;
+    }
+
+    .controls {
+        gap: 10px;
+        margin-bottom: 20px;
+    }
+
+    .control-btn {
+        width: 50px;
+        height: 50px;
+    }
+
+    .control-btn.play-btn {
+        width: 70px;
+        height: 70px;
+    }
+    
+    .control-btn svg {
+        width: 18px;
+        height: 18px;
+    }
+    
+    .control-btn.play-btn svg {
+        width: 24px;
+        height: 24px;
+    }
+
+    .input-section {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .tune-btn {
+        width: 100%;
+        padding: 10px;
+    }
+
+    .volume-section {
+        padding: 10px 15px;
+    }
+}
+
