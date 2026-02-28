@@ -644,7 +644,7 @@ body {
 .playlist-header {
     background: #f5e6d3; /* Cassette label color */
     color: #333;
-    padding: 12px 15px;
+    padding: 8px 10px;
     border-radius: 4px;
     margin-bottom: 20px;
     font-family: 'Courier New', monospace; /* Typewriter look */
@@ -658,6 +658,7 @@ body {
         inset 0 0 10px rgba(0,0,0,0.05);
     border: 1px solid #dcd0c0;
     transform: rotate(-1deg); /* Slight organic tilt */
+    gap: 10px; /* Add gap for spacing */
 }
 
 .tape-label {
@@ -667,19 +668,17 @@ body {
 }
 
 .clear-btn {
-    background: none;
+    background: transparent;
     border: 2px solid #cc4444;
     color: #cc4444;
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    font-size: 16px;
-    line-height: 1;
+    padding: 8px 10px;
+    border-radius: 4px;
+    font-family: 'Press Start 2P', cursive;
+    font-size: 8px;
     cursor: pointer;
-    display: flex;
-    justify-content: center;
-    align-items: center;
     transition: all 0.2s;
+    text-transform: uppercase;
+    flex-shrink: 0;
 }
 
 .clear-btn:hover {
@@ -780,6 +779,11 @@ body {
     background: linear-gradient(145deg, #555, #444);
 }
 
+/* Toggle Buttons - Default Hidden */
+.mobile-toggle-btn, .back-btn {
+    display: none;
+}
+
 /* Mobile Optimization */
 @media (max-width: 768px) {
     body {
@@ -795,6 +799,71 @@ body {
     .playlist-panel {
         height: auto;
         min-height: 400px;
+        /* Toggle Logic: Hide by default on mobile */
+        display: none;
+    }
+
+    /* Toggle Logic */
+    body.show-playlist .radio-container {
+        display: none;
+    }
+
+    body.show-playlist .playlist-panel {
+        display: flex;
+        flex-direction: column;
+        height: 80vh; /* Better usage of height in mobile */
+    }
+
+    /* Buttons */
+    .mobile-toggle-btn {
+        display: block;
+        width: 100%;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: var(--accent-orange);
+        padding: 12px;
+        margin-top: 15px;
+        border-radius: 8px;
+        font-family: 'Press Start 2P', cursive;
+        font-size: 10px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .mobile-toggle-btn:hover {
+        background: rgba(255, 255, 255, 0.1);
+    }
+
+    .back-btn {
+        display: block;
+        background: #333;
+        color: #f5e6d3;
+        border: none;
+        font-family: 'Press Start 2P', cursive;
+        font-size: 8px;
+        cursor: pointer;
+        padding: 8px 12px;
+        border-radius: 6px;
+        margin-right: 0; /* Handled by header gap */
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        transition: all 0.2s;
+        flex-shrink: 0;
+    }
+
+    .back-btn:hover {
+        transform: translateY(-2px);
+        background: #444;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    }
+    
+    .tape-label {
+        font-size: 14px;
+        flex: 1;
+        text-align: center;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        padding: 0 5px;
     }
 }
 
@@ -874,4 +943,3 @@ body {
         padding: 10px 15px;
     }
 }
-

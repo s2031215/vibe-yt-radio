@@ -23,10 +23,13 @@ const elements = {
     playIcon: document.getElementById('playIcon'),
     // addToPlaylistBtn removed
     playlistContent: document.getElementById('playlistContent'),
-    clearPlaylistBtn: document.getElementById('clearPlaylistBtn')
+    clearPlaylistBtn: document.getElementById('clearPlaylistBtn'),
+    viewPlaylistBtn: document.getElementById('viewPlaylistBtn'),
+    backToRadioBtn: document.getElementById('backToRadioBtn')
 };
 
 let player;
+
 let isPlaying = false;
 let currentVideoId = null;
 let progressInterval;
@@ -1086,4 +1089,22 @@ document.addEventListener('keydown', handleKeyboardControls);
 // elements.addToPlaylistBtn removed
 elements.clearPlaylistBtn.addEventListener('click', clearPlaylist);
 
+// Mobile Toggle View Logic
+function togglePlaylistView(show) {
+    if (show) {
+        document.body.classList.add('show-playlist');
+    } else {
+        document.body.classList.remove('show-playlist');
+    }
+}
+
+if (elements.viewPlaylistBtn) {
+    elements.viewPlaylistBtn.addEventListener('click', () => togglePlaylistView(true));
+}
+
+if (elements.backToRadioBtn) {
+    elements.backToRadioBtn.addEventListener('click', () => togglePlaylistView(false));
+}
+
 console.log('[YouTube FM] Initialization complete');
+
