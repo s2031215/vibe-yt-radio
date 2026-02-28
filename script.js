@@ -66,6 +66,11 @@ function showLoading(show) {
 }
 
 function extractVideoId(url) {
+    try {
+        url = decodeURIComponent(url);
+    } catch (e) {
+        // Ignore decoding errors
+    }
     console.log('[YouTube FM] Extracting video ID from:', url);
     const patterns = [
         /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
@@ -85,6 +90,11 @@ function extractVideoId(url) {
 }
 
 function extractPlaylistId(url) {
+    try {
+        url = decodeURIComponent(url);
+    } catch (e) {
+        // Ignore decoding errors
+    }
     console.log('[YouTube FM] Extracting playlist ID from:', url);
     const patterns = [
         /[?&]list=([a-zA-Z0-9_-]+)/,
@@ -218,7 +228,8 @@ function formatTime(seconds) {
 
 function onYouTubeIframeAPIReady() {
     console.log('[YouTube FM] YouTube API ready, creating player...');
-    player = new YT.Player('player', {
+    
+    const playerConfig = {
         height: '0',
         width: '0',
         playerVars: {
@@ -236,7 +247,14 @@ function onYouTubeIframeAPIReady() {
             onStateChange: onPlayerStateChange,
             onError: onPlayerError
         }
-    });
+    };
+
+    // Add origin if running on a server (http/https) to prevent embedding errors
+    if (window.location.protocol.startsWith('http')) {
+        playerConfig.playerVars.origin = window.location.origin;
+    }
+
+    player = new YT.Player('player', playerConfig);
 }
 
 function onPlayerReady(event) {
@@ -324,12 +342,32 @@ function loadVideo() {
             targetVideoId = videoId; // Store the target video ID (if any)
             
             // Load the playlist to get the video IDs
-            player.loadPlaylist({
+            // Note: For Mixes (RD...) or Learning (LR...), listType: 'playlist' can sometimes cause issues.
+            // Omitting it allows the player to infer the type.
+            const loadOptions = {
                 list: playlistId,
-                listType: 'playlist',
                 index: 0,
                 startSeconds: 0
-            });
+            };
+            
+            // Explicitly set listType only for standard playlists (PL...) to avoid ambiguity,
+            // but leave it undefined for others (RD, LR, UU, etc.) to let YouTube handle it.
+            if (playlistId.startsWith('PL')) {
+                loadOptions.listType = 'playlist';
+            }
+
+            // Safety timeout: If playlist doesn't load within 5 seconds, try to recover
+            if (window.playlistLoadTimer) clearTimeout(window.playlistLoadTimer);
+            window.playlistLoadTimer = setTimeout(() => {
+                if (pendingPlaylistImport) {
+                    console.warn('[YouTube FM] Playlist load timed out. Aborting import.');
+                    showLoading(false);
+                    pendingPlaylistImport = false;
+                    showError('Playlist load timed out');
+                }
+            }, 8000);
+
+            player.loadPlaylist(loadOptions);
         } else {
             // Video only
             console.log('[YouTube FM] Loading video:', videoId);
@@ -634,12 +672,66 @@ function updateNavigationButtons() {
     }
 }
 
+function checkPlayabilityError() {
+    try {
+        let response = null;
+        if (player && typeof player.getPlayerResponse === 'function') {
+            response = player.getPlayerResponse();
+        }
+
+        if (response) {
+            // Check standard playabilityStatus
+            if (response.playabilityStatus) {
+                if (response.playabilityStatus.status === 'ERROR' || response.playabilityStatus.status === 'LOGIN_REQUIRED' || response.playabilityStatus.status === 'UNPLAYABLE') {
+                    const reason = response.playabilityStatus.reason || 'Video not playable';
+                    console.warn('[YouTube FM] Playability Error detected:', reason);
+                    return reason;
+                }
+            }
+
+            // Check previewPlayabilityStatus (as requested)
+            if (response.previewPlayabilityStatus) {
+                if (response.previewPlayabilityStatus.status === 'ERROR') {
+                    console.warn('[YouTube FM] Preview Playability Error detected');
+                    return 'Video not playable (Preview Error)';
+                }
+            }
+        }
+    } catch (e) {
+        console.warn('[YouTube FM] Error checking playability status:', e);
+    }
+    return null;
+}
+
+function handlePlayabilityError(reason) {
+    console.log('[YouTube FM] Handling playability error:', reason);
+    // Reuse the existing onPlayerError logic with code 150 (restricted)
+    // We pass a synthetic event object
+    onPlayerError({ data: 150 }); 
+}
+
 function onPlayerStateChange(event) {
     console.log('[YouTube FM] Player state changed:', event.data);
     showLoading(false);
 
+    // Check for playability errors (unplayable videos that don't trigger onError)
+    // Only verify when not playing, as playing implies it's working
+    if (event.data !== YT.PlayerState.PLAYING) {
+        const playabilityError = checkPlayabilityError();
+        if (playabilityError) {
+            handlePlayabilityError(playabilityError);
+            return;
+        }
+    }
+
     // --- Playlist Import Logic ---
     if (pendingPlaylistImport && (event.data === YT.PlayerState.CUED || event.data === YT.PlayerState.PLAYING)) {
+        // Clear safety timeout
+        if (window.playlistLoadTimer) {
+            clearTimeout(window.playlistLoadTimer);
+            window.playlistLoadTimer = null;
+        }
+
         const playlist = player.getPlaylist();
         if (playlist && playlist.length > 0) {
             console.log('[YouTube FM] Importing native playlist:', playlist.length, 'tracks');
@@ -709,6 +801,16 @@ function onPlayerStateChange(event) {
             console.log('[YouTube FM] Starting imported playlist at index:', startIndex);
             playCustomTrack(startIndex);
             return; // Stop processing this event as we are restarting playback
+        } else {
+            console.warn('[YouTube FM] Playlist import requested but no tracks found (Mix/Radio/Private?). Playing single video.');
+            // If we expected a playlist but got none, and we aren't playing a specific video, we might be stuck.
+            // But usually loadVideo() sets a videoId too if available.
+            
+            if (!currentVideoId && !player.getVideoData().video_id) {
+                 showError('Playlist empty or private');
+            }
+            
+            pendingPlaylistImport = false;
         }
     }
     // --- End Playlist Import Logic ---
